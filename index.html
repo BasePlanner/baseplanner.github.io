@@ -1052,7 +1052,7 @@ if(!names.includes("position")||!names.includes("normal"))return;list.forEach(g=
 const mg=THREE.BufferGeometryUtils.mergeBufferGeometries(list,false);if(!mg)return;const im=new THREE.InstancedMesh(mg,mat,CAP0);im.frustumCulled=false;im.count=0;scene.add(im);parts.push(im)});
 const ex=new THREE.Group();scene.add(ex);INS[t]={parts,extras,ex,cap:CAP0};return INS[t]}
 /* real .glb models: fetched after start and swapped in one by one; the coded model stays as the fallback */
-const GLB_SCALE=1/1.5,GLB_REQ=new Set(),GLB_READY=new Set(),GLB_LIST={sandbag:0,bremer:0,hedge:0,gate:1,wire:1,shelt:0,mgun:0,loud:0,radio:1,mortar:0,ciws:0,refuel:0,repair:0,tent:1,door:0,fob:0,sting:0,sam:0,platform:0};
+const GLB_SCALE=1/1.5,GLB_REQ=new Set(),GLB_READY=new Set(),GLB_LIST={sandbag:0,bremer:3,hedge:1,gate:1,wire:1,shelt:0,mgun:0,loud:0,radio:3,mortar:0,ciws:0,refuel:0,repair:0,tent:1,door:0,fob:1,sting:0,sam:3,platform:0};
 function loadShell(){return fetch("models/shelter.glb").then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(buf=>new Promise((ok,no)=>new THREE.GLTFLoader().parse(buf,"",ok,no))).then(gl=>{const inner=gl.scene;inner.traverse(o=>{if(!o.isMesh)return;o.castShadow=o.receiveShadow=true;(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m.map){m.map.encoding=THREE.LinearEncoding;m.map.needsUpdate=true}m.side=THREE.DoubleSide;m.needsUpdate=true})});inner.scale.setScalar(GLB_SCALE);const root=new THREE.Group();root.add(inner);SHELL_SH=root;["shelter","shelterShell","o_shelter"].forEach(k=>{const o=INS[k];if(o){o.parts.forEach(im=>scene.remove(im));scene.remove(o.ex);delete INS[k]}delete TPL[k]});ghostKey="";rebuild()}).catch(e=>console.warn("shelter glb not loaded",e))}
 function loadFloorB(){return fetch("models/bunkfloor.glb").then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(buf=>new Promise((ok,no)=>new THREE.GLTFLoader().parse(buf,"",ok,no))).then(gl=>{const inner=gl.scene;inner.traverse(o=>{if(!o.isMesh)return;o.castShadow=o.receiveShadow=true;(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m.map){m.map.encoding=THREE.LinearEncoding;m.map.needsUpdate=true}m.side=THREE.DoubleSide;m.needsUpdate=true})});inner.scale.setScalar(GLB_SCALE);const root=new THREE.Group();root.add(inner);FLOOR_B=root;["bunker","bunkerShell","o_bunker"].forEach(k=>{const o=INS[k];if(o){o.parts.forEach(im=>scene.remove(im));scene.remove(o.ex);delete INS[k]}delete TPL[k]});ghostKey="";rebuild()}).catch(e=>console.warn("bunker floor glb not loaded",e))}
 loadFloorB();
@@ -1061,7 +1061,7 @@ loadFloorT();
 loadShell();
 function useGLB(key,rot){return fetch("models/"+key+".glb").then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(buf=>new Promise((ok,no)=>new THREE.GLTFLoader().parse(buf,"",ok,no))).then(gl=>{
 const inner=gl.scene;inner.traverse(o=>{if(!o.isMesh)return;o.castShadow=o.receiveShadow=true;(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m.map){m.map.encoding=THREE.LinearEncoding;m.map.needsUpdate=true}m.side=THREE.DoubleSide;if(m.transparent){m.transparent=false;m.alphaTest=0.5}m.needsUpdate=true})});
-inner.rotation.y=rot?Math.PI/2:0;inner.scale.setScalar(GLB_SCALE);const root=new THREE.Group();root.add(inner);root.updateMatrixWorld(true);
+inner.rotation.y=(rot||0)*Math.PI/2;inner.scale.setScalar(GLB_SCALE);const root=new THREE.Group();root.add(inner);root.updateMatrixWorld(true);
 const bb=new THREE.Box3().setFromObject(root),c=bb.getCenter(new THREE.Vector3());inner.position.set(-c.x,0,-c.z);root.updateMatrixWorld(true);
 if(!SUP.has(key)&&!T[key].hy&&Math.abs(bb.max.y-T[key].y)/T[key].y>0.15)T[key].y=+bb.max.y.toFixed(2);
 MODELS[key]=()=>root;if(key==="sandbag"){inner.traverse(o=>{if(o.isMesh&&!SBM)SBM={geo:o.geometry,mat:o.material}});for(const k in SBG)delete SBG[k];for(const k in INS){INS[k].parts.forEach(im=>scene.remove(im));scene.remove(INS[k].ex);delete INS[k]}for(const k in TPL)delete TPL[k];MODELS.o_sandbag=MODELS[key];const o2=INS.o_sandbag;if(o2){o2.parts.forEach(im=>scene.remove(im));scene.remove(o2.ex);delete INS.o_sandbag}delete TPL.o_sandbag}GLB_READY.add(key);const o=INS[key];if(o){o.parts.forEach(im=>scene.remove(im));scene.remove(o.ex);delete INS[key]}delete TPL[key]}).catch(e=>console.warn("glb not loaded",key,e))}
@@ -1106,7 +1106,7 @@ function partMat(it,p,k){const r=partRect(it,p),m=new THREE.Matrix4(),kk=k||part
 function l2wCell(it,x,y){let W=Math.floor(T[it.t].w),H=Math.floor(T[it.t].h);for(let i=0;i<it.r%4;i++){const nx=H-1-y,ny=x;x=nx;y=ny;[W,H]=[H,W]}return[x,y]}
 function w2lCell(it,cx,cy){const W=Math.floor(T[it.t].w),H=Math.floor(T[it.t].h);for(let x=0;x<W;x++)for(let y=0;y<H;y++){const c=l2wCell(it,x,y);if(c[0]===cx&&c[1]===cy)return[x,y]}return null}
 let ed=null,edStroke=null,edR=null,edGhost=null;const editG=new THREE.Group();scene.add(editG);
-const EDK=["hb1","hbt","bremer","hedge","sandbag","door",...ORDER.filter(k=>!["fob","bunker","shelter","shelt","mgun","tower","hb1","hbt","bremer","sandbag","hedge","door"].includes(k))];
+const EDK=["hb1","hbt","bremer","hedge","sandbag","door",...ORDER.filter(k=>!["fob","bunker","shelter","shelt","tower","hb1","hbt","bremer","sandbag","hedge","door"].includes(k))];
 EDK.forEach(k=>{const b=document.createElement("button");b.dataset.k=k;b.innerHTML=T[k].n+"<small>"+T[k].w+"\u00D7"+T[k].h+"</small>";b.onclick=()=>{if(ed){ed.sel=k;edSetGhost();edPalUi()}};$("edPal").appendChild(b)});
 const edPalUi=()=>document.querySelectorAll("#edPal button").forEach(b=>b.className=ed&&b.dataset.k===ed.sel?"on":"");
 const edSnap=()=>JSON.stringify(enc(ed.parts));
@@ -1681,12 +1681,12 @@ function renderShare(){const ready=saveReady();$("bLink").disabled=viewOnly;$("b
 const say=t=>{$("msg").textContent=t};
 function loginGate(kind){if(!authOn()||(authUser&&profile))return false;if(authUser&&!profile){openMyProfile();return true}
 const sv=kind==="save",ttl=sv?"LOG IN TO SAVE":"LOG IN TO SHARE";profShow("LOGIN",ttl);
-profBody.append(mk("p",sv?"Log in or register to save your blueprint to your account and share it on the Intel Board.":"Log in or register to share your blueprint and get a share code."),mk("p","It is free and takes one tap with Google."));
-const m=mk("div","","msgline"),row=mk("div","","shRow"),lg=mk("button","Log in / Register"),x=mk("button",sv?"Save on this device":"Cancel");lg.type=x.type="button";row.append(lg,x);profBody.append(m,row);
+profBody.append(mk("p",sv?"Log in or register to save your blueprint to your account and share it on the Intel Board.":"Log in or register to share your blueprint and get a share code."));
+const m=mk("div","","msgline"),row=mk("div","","shRow"),lg=mk("button","Log in / Register"),x=mk("button","Cancel");lg.type=x.type="button";row.append(lg,x);profBody.append(m,row);
 lg.onclick=async()=>{lg.disabled=true;m.textContent="Opening sign-in...";const ok=await startLogin(t=>{m.textContent=t});if(!ok){lg.disabled=false;return}
 m.textContent="Logged in.";for(let k=0;k<12&&$("profTitle").textContent===ttl&&!(authUser&&profile);k++)await new Promise(r=>setTimeout(r,300));
 if($("profTitle").textContent!==ttl)return;if(authUser&&profile){if(sv)openSave();else{profHide();say("Logged in. Save the blueprint, then press Share.")}}else{profHide();say("Logged in. Press "+(sv?"Save":"Share")+" again.")}};
-x.onclick=()=>{profHide();if(sv)openSave()};return true}
+x.onclick=profHide;return true}
 $("bLink").onclick=async()=>{if(loginGate("share"))return;if(!saveReady()){say("Save the blueprint first, then you can get its share code.");return}
 const long=await shareCode(),name=$("bpName").value.trim().slice(0,40);let c=long,short=false,note="";
 if(bpPostCode&&authUser&&profile){c=bpPostCode;short=true}else if(cloudOn()){try{if(authUser&&profile&&fbDb){c=await sdkPutBp({d:long,n:items.length,v:1,title:name,desc:($("bpDesc").value||"").trim().slice(0,300),uid:authUser.uid,by:profile.username,parent:bpParent?bpParent.code:"",parentTitle:bpParent?bpParent.title:"",parentBy:bpParent?bpParent.by:"",t:FVts()})}else c=await cloudPut(long,name);short=true}catch(e){note="Could not reach the share server, so this is the long link. "}}
