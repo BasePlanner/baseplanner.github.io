@@ -172,7 +172,7 @@ header{padding:6px 10px;gap:8px}h1{font-size:15px;letter-spacing:1px}header .tag
 <p>Welcome, builder. Wardogs Base Builder is a free 3D base planner.</p>
 <button class="wBtn" id="wNew">NEW BLUEPRINT<small>Start on an empty map and place your F.O.B.</small></button>
 <button class="wBtn" id="wLoadB">LOAD BLUEPRINT<small>Open a saved blueprint, or paste a share link or code.</small></button>
-<button class="wBtn" id="wBrowse" disabled>INTEL BOARD<small id="wBrowseS">Login to browse community blueprints.</small></button>
+<button class="wBtn" id="wBrowse" disabled>INTEL BOARD<small id="wBrowseS">Browse blueprints shared by other builders.</small></button>
 <button class="wBtn" id="wLogin" disabled><span id="wLoginT">LOGIN / REGISTER</span><small id="wLoginS">Save blueprints online and post to the Intel Board. Coming soon.</small></button>
 <div id="wAuthMsg" style="font-size:12px;color:var(--muted);margin:0 0 8px"></div>
 <div class="wfoot"><a href="https://discord.gg/qArh7JqVuF" target="_blank" rel="noopener">Join the Discord</a> to report bugs or share ideas. <a href="#privacy" id="wPriv">Privacy and terms</a></div>
@@ -1266,7 +1266,7 @@ function valid(t,x,y,r){const [w,h]=dims(t,r);
 if(t==="fob"){const cx=x+1.5,cz=y+1.5;if(cx<R||cz<R||cx>GW-R||cz>GH-R)return false;return fobs().every(f=>{const c=zc(f);return Math.max(Math.abs(cx-c[0]),Math.abs(cz-c[1]))>=2*R-1e-9})}
 if(!fobs().length)return false;return inBox(x,y,w,h)&&!hitsFob(x,y,w,h)&&stackAt(t,x,y,r).ok}
 const mapModeNow=()=>tool==="fob"||!fobs().length;
-function drawZones(){while(zoneG.children.length)zoneG.remove(zoneG.children[0]);const mm=mapModeNow();mapG.visible=mm;
+function drawZones(){while(zoneG.children.length){const o=zoneG.children[0];zoneG.remove(o);if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()}const mm=mapModeNow();mapG.visible=mm;
 const lines=(arr,color)=>{const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(arr,3));zoneG.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color})))};
 fobs().forEach(f=>{const [cx,cz]=zc(f);
 const d=new THREE.Mesh(new THREE.PlaneGeometry(2*R,2*R),mm?new THREE.MeshBasicMaterial({color:hx(TH.ac),transparent:true,opacity:0.22}):new THREE.MeshStandardMaterial({color:hx(TH.gr),roughness:1}));d.rotation.x=-Math.PI/2;d.position.set(cx,mm?0.02:-0.01,cz);zoneG.add(d);
@@ -1473,7 +1473,7 @@ if(r.status===404)return null;if(!r.ok)throw new Error("read "+r.status);const j
 const getProfileByUid=async uid=>{const p=await fsGetDoc("users/"+uid);return p&&{...p,uid}};
 async function getProfileByName(name){const u=await fsGetDoc("usernames/"+String(name).toLowerCase());return u&&u.uid?getProfileByUid(u.uid):null}
 function renderLogin(){const b=$("wLogin"),t=$("wLoginT"),s=$("wLoginS"),w=$("who");
-{const can=!!(authOn()&&authReady&&authUser);$("wBrowse").disabled=!can;$("wBrowseS").textContent=can?"Browse blueprints shared by other builders.":(authOn()&&!authReady?"Checking login...":"Login to browse community blueprints.");if(!can)boardHide()}
+{const can=cloudOn();$("wBrowse").disabled=!can;$("wBrowseS").textContent=can?"Browse blueprints shared by other builders.":"Not available right now."}
 if(!authOn()){b.disabled=true;t.textContent="LOGIN / REGISTER";s.textContent="Save blueprints online and post to the Intel Board. Coming soon.";w.textContent="";return}
 if(!authReady){b.disabled=true;t.textContent="LOGIN / REGISTER";s.textContent=authErr||"Connecting...";w.textContent="";return}
 b.disabled=false;
@@ -1481,7 +1481,7 @@ if(authUser){const nm=profile&&profile.username||authUser.displayName||"builder"
 else{t.textContent="LOGIN / REGISTER";s.textContent=IN_APP?"Open this page in Chrome or Safari to log in.":"Sign in with Google to save blueprints online and post to the Intel Board.";w.textContent=""}}
 function ensureSDK(){if(sdkP)return sdkP;sdkP=(async()=>{for(const f of["app","auth","firestore"])await loadScript("https://www.gstatic.com/firebasejs/"+FB_VER+"/firebase-"+f+"-compat.js");
 firebase.initializeApp({apiKey:CLOUD.apiKey,authDomain:CLOUD.authDomain||CLOUD.projectId+".firebaseapp.com",projectId:CLOUD.projectId});fbDb=firebase.firestore();
-await new Promise(res=>{let first=true;firebase.auth().onAuthStateChanged(async u=>{const real=u&&!u.isAnonymous?u:null;authUser=real;profile=null;adminOn=false;if(real){try{profile=await getProfileByUid(real.uid)}catch(e){}adminCheck(real)}authReady=true;renderLogin();if(!real)boardHide();if(real&&viewOnly&&vmeta)countView(vmeta.code,vmeta.doc);
+await new Promise(res=>{let first=true;firebase.auth().onAuthStateChanged(async u=>{const real=u&&!u.isAnonymous?u:null;authUser=real;profile=null;adminOn=false;if(real){try{profile=await getProfileByUid(real.uid)}catch(e){}adminCheck(real)}authReady=true;renderLogin();if(real&&viewOnly&&vmeta)countView(vmeta.code,vmeta.doc);
 if(real&&!profile&&!first)openMyProfile();if(first){first=false;res()}})})})();sdkP.catch(()=>{authErr="Sign-in is not available right now.";sdkP=null;renderLogin()});return sdkP}
 async function initAuth(){renderLogin();if(!authOn())return;setTimeout(()=>{ensureSDK().catch(()=>{})},2000)}
 const FVts=()=>firebase.firestore.FieldValue.serverTimestamp();
@@ -1559,14 +1559,15 @@ function viewPrivacy(){profShow("LEGAL","PRIVACY AND TERMS");privacySections().f
 /* deleting an account */
 async function deleteMyAccount(say){const user=authUser,uid=user.uid,name=profile.username.toLowerCase();say("Confirming it is you...");
 try{await user.reauthenticateWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){if(e&&e.code==="auth/popup-closed-by-user")throw e;const x=new Error("reauth");x.userMsg="Could not confirm your sign-in. Allow pop-ups and try again.";throw x}
-const sweep=async(label,make)=>{for(let k=0;k<40;k++){const q=await make().limit(50).get();if(q.empty)return;say(label);const b=fbDb.batch();q.forEach(d=>b.delete(d.ref));await b.commit()}};
-await sweep("Removing your Intel Board posts...",()=>fbDb.collection("board").where("uid","==",uid));
+const sub=async ref=>{for(const n of ["likes","views"]){try{for(let k=0;k<100;k++){const q=await ref.collection(n).limit(100).get();if(q.empty)break;const b=fbDb.batch();q.forEach(d=>b.delete(d.ref));await b.commit()}}catch(e){}}};
+const sweep=async(label,make,kids)=>{for(let k=0;k<400;k++){const q=await make().limit(50).get();if(q.empty)return;say(label);if(kids)for(const d of q.docs)await sub(d.ref);const b=fbDb.batch();q.forEach(d=>b.delete(d.ref));await b.commit()}const x=new Error("incomplete");x.userMsg="You have a lot of data, so not everything was removed yet. Press Delete everything again to continue.";throw x};
+await sweep("Removing your Intel Board posts...",()=>fbDb.collection("board").where("uid","==",uid),true);
 await sweep("Removing your share codes...",()=>fbDb.collection("bps").where("uid","==",uid));
 await sweep("Removing your saved blueprints...",()=>fbDb.collection("users").doc(uid).collection("saves"));
 say("Removing your profile...");const b=fbDb.batch();b.delete(fbDb.collection("usernames").doc(name));b.delete(fbDb.collection("users").doc(uid));await b.commit();
 say("Removing your login...");await user.delete();try{localStorage.removeItem("wd_seen_"+uid)}catch(e){}profile=null}
 function viewDelete(){profShow("ACCOUNT","DELETE YOUR ACCOUNT");
-profBody.append(mk("p","This permanently deletes your profile, the blueprints saved in your account, your Intel Board posts and the share codes you made while logged in, and then removes your login. It cannot be undone."),mk("p","Blueprints saved only on this device stay on this device. Your likes and views on other posts stay, with no link to you."));
+profBody.append(mk("p","This permanently deletes your profile, the blueprints saved in your account, your Intel Board posts and the share codes you made while logged in, and then removes your login. It cannot be undone."),mk("p","Blueprints saved only on this device stay on this device. Your likes and views on other posts stay, under an anonymous ID with no name or profile attached."));
 const i=fld("Type your username to confirm","dlName","",20),m=mk("div","","msgline"),row=mk("div","","shRow"),go=mk("button","Delete everything"),back=mk("button","Back");go.type=back.type="button";go.disabled=true;go.className="danger";row.append(go,back);profBody.append(m,row);
 i.addEventListener("input",()=>{go.disabled=i.value.trim().toLowerCase()!==profile.username.toLowerCase()});back.onclick=()=>viewEdit();
 go.onclick=async()=>{go.disabled=true;back.disabled=true;i.disabled=true;try{await deleteMyAccount(t=>{m.textContent=t});profBody.textContent="";profBody.append(mk("p","Your account and its data were deleted. Goodbye, and thanks for building."))}
@@ -1643,7 +1644,7 @@ c.append(row);return c}
 async function boardLoad(reset){const s=bState;if(s.busy)return;s.busy=true;const grid=$("boardGrid"),msg=$("boardMsg");if(reset){grid.textContent="";s.cursor=null;s.done=false;s.shown=new Set()}
 msg.textContent="Loading...";try{const rows=await boardFetch();rows.forEach(p=>{if(!s.shown.has(p._id)){s.shown.add(p._id);grid.append(boardCard(p))}});
 msg.textContent=grid.children.length?"":(s.q?"No matching blueprints.":"Nothing on the board yet. Be the first to share a base.");$("boardMore").hidden=!!(s.done||s.q||s.mode==="liked")}catch(e){msg.textContent="The board could not be loaded right now."}s.busy=false}
-function boardOpen(){if(!cloudOn()||!authUser)return;setHdr();$("boardPanel").hidden=false;bState.mode="new";bState.q="";$("boardQ").value="";$("boardSort").value="new";boardLoad(true)}
+function boardOpen(){if(!cloudOn())return;setHdr();$("boardPanel").hidden=false;bState.mode="new";bState.q="";$("boardQ").value="";$("boardSort").value="new";boardLoad(true)}
 function boardHide(){$("boardPanel").hidden=true}
 $("boardClose").onclick=boardHide;$("boardMore").onclick=()=>boardLoad(false);$("wBrowse").onclick=boardOpen;
 $("boardSort").onchange=()=>{bState.mode=$("boardSort").value;bState.q="";$("boardQ").value="";boardLoad(true)};
@@ -1676,9 +1677,17 @@ async function loadAny(c){try{const r=await decodeAny(c);return r?loadItems(r.ar
 async function openShared(raw){try{const r=await decodeAny(raw);if(!r)return false;enterView(r);return true}catch(e){return false}}
 function slugOf(name){return name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"blueprint"}
 const saveReady=()=>bpSaved&&!bpDirty;
-function renderShare(){const ready=saveReady();$("bLink").disabled=!ready||viewOnly;$("bSave").disabled=viewOnly}
+function renderShare(){const ready=saveReady();$("bLink").disabled=viewOnly;$("bSave").disabled=viewOnly}
 const say=t=>{$("msg").textContent=t};
-$("bLink").onclick=async()=>{if(!saveReady()){say("Save the blueprint first, then you can get its share code.");return}
+function loginGate(kind){if(!authOn()||(authUser&&profile))return false;if(authUser&&!profile){openMyProfile();return true}
+const sv=kind==="save",ttl=sv?"LOG IN TO SAVE":"LOG IN TO SHARE";profShow("LOGIN",ttl);
+profBody.append(mk("p",sv?"Log in or register to save your blueprint to your account and share it on the Intel Board.":"Log in or register to share your blueprint and get a share code."),mk("p","It is free and takes one tap with Google."));
+const m=mk("div","","msgline"),row=mk("div","","shRow"),lg=mk("button","Log in / Register"),x=mk("button",sv?"Save on this device":"Cancel");lg.type=x.type="button";row.append(lg,x);profBody.append(m,row);
+lg.onclick=async()=>{lg.disabled=true;m.textContent="Opening sign-in...";const ok=await startLogin(t=>{m.textContent=t});if(!ok){lg.disabled=false;return}
+m.textContent="Logged in.";for(let k=0;k<12&&$("profTitle").textContent===ttl&&!(authUser&&profile);k++)await new Promise(r=>setTimeout(r,300));
+if($("profTitle").textContent!==ttl)return;if(authUser&&profile){if(sv)openSave();else{profHide();say("Logged in. Save the blueprint, then press Share.")}}else{profHide();say("Logged in. Press "+(sv?"Save":"Share")+" again.")}};
+x.onclick=()=>{profHide();if(sv)openSave()};return true}
+$("bLink").onclick=async()=>{if(loginGate("share"))return;if(!saveReady()){say("Save the blueprint first, then you can get its share code.");return}
 const long=await shareCode(),name=$("bpName").value.trim().slice(0,40);let c=long,short=false,note="";
 if(bpPostCode&&authUser&&profile){c=bpPostCode;short=true}else if(cloudOn()){try{if(authUser&&profile&&fbDb){c=await sdkPutBp({d:long,n:items.length,v:1,title:name,desc:($("bpDesc").value||"").trim().slice(0,300),uid:authUser.uid,by:profile.username,parent:bpParent?bpParent.code:"",parentTitle:bpParent?bpParent.title:"",parentBy:bpParent?bpParent.by:"",t:FVts()})}else c=await cloudPut(long,name);short=true}catch(e){note="Could not reach the share server, so this is the long link. "}}
 const out=short?c:location.href.split("#")[0]+"#"+c;$("box").value=out;let ok=false;try{await navigator.clipboard.writeText(out);ok=true}catch(e){}
@@ -1759,7 +1768,7 @@ try{const r=await saveAndShare();if(!r.saved){m.textContent=$("msg").textContent
 if(r.local)finish("Saved on this device.");else if(r.shared==="new")finish("Saved and shared to the Intel Board. Share code: "+r.code+".");else if(r.shared==="updated")finish("Saved. Your Intel Board post was updated. Share code: "+r.code+".");
 else if(r.wait){m.textContent="Saved to your account. New posts are limited to one every 30 seconds, press the button again in a moment to share it.";go.disabled=false}
 else{m.textContent="Saved to your account, but sharing failed. Press the button to try again.";go.disabled=false}}catch(e){m.textContent="Could not save. Try again.";go.disabled=false}}}
-$("bSave").onclick=()=>{if(viewOnly)return;openSave()};$("bMenu").onclick=()=>wShow(true);[$("bpName"),$("bpDesc")].forEach(e=>e.addEventListener("input",()=>{bpDirty=true;renderShare()}));
+$("bSave").onclick=()=>{if(viewOnly)return;if(loginGate("save"))return;openSave()};$("bMenu").onclick=()=>wShow(true);[$("bpName"),$("bpDesc")].forEach(e=>e.addEventListener("input",()=>{bpDirty=true;renderShare()}));
 $("wNew").onclick=()=>{leaveView();push();items=[];sel=new Set();tool=null;updGhost();bpCur="";$("bpName").value="";$("bpDesc").value="";bpParent=null;bpPostCode="";bpSaved=false;bpDirty=false;rebuild();wHide()};
 $("wLoadB").onclick=()=>wView("load");$("wLoadBack").onclick=()=>wView("main");$("wBack").onclick=wHide;
 $("wOpenCode").onclick=async()=>{if(!(await openShared($("wCode").value)))$("wMsg").textContent="Could not read that code."};
