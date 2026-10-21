@@ -1753,7 +1753,7 @@ say("Saved "+name+" "+where+"."+(bpParent?" This blueprint is built on "+bpParen
 async function saveAndShare(){const where=await saveBp();if(!where)return{saved:false};
 if(!(authUser&&profile&&fbDb&&cloudOn()))return{saved:true,shared:false,local:true};
 const name=$("bpName").value.trim().slice(0,40),desc=($("bpDesc").value||"").trim().slice(0,300);
-try{if(bpPostCode){try{await updateBoardPost(name,desc);return{saved:true,shared:"updated",code:bpPostCode}}catch(e){if(!(e&&e.code==="not-found"))throw e;bpPostCode=""}}
+try{if(bpPostCode){try{await updateBoardPost(name,desc);return{saved:true,shared:"updated",code:bpPostCode}}catch(e){if(!(e&&(e.code==="not-found"||e.code==="permission-denied")))throw e;bpPostCode=""}}
 if(Date.now()-lastPost<30000)return{saved:true,shared:false,wait:true};
 const c=await postToBoard(name,desc);lastPost=Date.now();return{saved:true,shared:"new",code:c}}catch(e){return{saved:true,shared:false,failed:true}}}
 function openSave(){if(viewOnly)return;const acct=!!(authUser&&profile&&fbDb&&cloudOn());profShow("SAVE","SAVE BLUEPRINT");
